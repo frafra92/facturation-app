@@ -291,9 +291,14 @@ select.line-num-inp{-webkit-appearance:none;cursor:pointer;}
       <div class="form-section">Prestations <span style="font-weight:300;font-size:11px;text-transform:none;letter-spacing:0;">— TVA par ligne</span></div>
       <div class="lines-wrap">
         <div id="lines-container"></div>
-        <div class="add-line" onclick="addLine()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 4v16m8-8H4"/></svg>
-          Ajouter une ligne
+        <div style="display:flex;border-top:1px solid var(--border);">
+          <div class="add-line" style="flex:1;border-right:1px solid var(--border);" onclick="addLine()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 4v16m8-8H4"/></svg>
+            Nouvelle ligne
+          </div>
+          <div class="add-line" style="flex:1;color:var(--orange);" onclick="openFavsModal()">
+            ★ Mes prestations
+          </div>
         </div>
       </div>
       <div class="total-block" id="form-totaux"></div>
@@ -350,6 +355,19 @@ select.line-num-inp{-webkit-appearance:none;cursor:pointer;}
   </div>
 </div>
 
+<!-- MODAL FAVORIS -->
+<div class="modal-wrap" id="modal-favs">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <span class="modal-title" style="margin:0;">★ Mes prestations mémorisées</span>
+      <button onclick="closeModal('modal-favs')" style="background:none;border:none;color:var(--text3);font-size:24px;cursor:pointer;">×</button>
+    </div>
+    <div id="favs-list"></div>
+    <button class="modal-btn modal-btn-secondary" onclick="closeModal('modal-favs')" style="margin-top:16px;width:100%;padding:13px;border-radius:var(--r-sm);">Fermer</button>
+  </div>
+</div>
+
 <!-- MODAL EXPORT -->
 <div class="modal-wrap" id="modal-export">
   <div class="modal-sheet">
@@ -371,6 +389,7 @@ select.line-num-inp{-webkit-appearance:none;cursor:pointer;}
   <div class="modal-sheet">
     <div class="modal-handle"></div>
     <div class="modal-title">Enregistrer un paiement</div>
+    <div id="pay-context"></div>
     <div style="margin-bottom:12px;">
       <div style="font-size:12px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.06em;font-weight:500;">Montant reçu</div>
       <input class="pay-input" id="pay-montant" type="number" min="0" step="0.01" placeholder="0,00">
@@ -581,7 +600,55 @@ function openForm(type, id) {
   renderFormLines(); updateTotaux();
 }
 
-function addLine() { formLines.push({desc:'',qte:1,prix:0,unite:'',tva:0}); renderFormLines(); }
+function addLine() { formLines.push({desc:'',qte:'',prix:'',unite:'',tva:0}); renderFormLines(); }
+
+/* ── LIGNES FAVORITES ── */
+function getFavs() { return JSON.parse(localStorage.getItem('app_favlines')||'[]'); }
+function saveFavs(f) { localStorage.setItem('app_favlines', JSON.stringify(f)); }
+
+function saveLigneAsFav(i) {
+  const l = formLines[i];
+  if(!l.desc.trim()){ toast('⚠ Indique une description'); return; }
+  const favs = getFavs();
+  // Éviter les doublons sur la description
+  if(favs.find(f=>f.desc===l.desc)){ toast('Déjà enregistrée'); return; }
+  favs.push({desc:l.desc, qte:l.qte, prix:l.prix, unite:l.unite, tva:l.tva});
+  saveFavs(favs);
+  toast('✓ Ligne mémorisée');
+}
+
+function deleteFav(i) {
+  const favs = getFavs(); favs.splice(i,1); saveFavs(favs);
+  renderFavsModal();
+}
+
+function addFavToForm(fav) {
+  formLines.push({desc:fav.desc, qte:fav.qte, prix:fav.prix, unite:fav.unite, tva:fav.tva||0});
+  renderFormLines(); updateTotaux();
+  closeModal('modal-favs');
+  toast('✓ Prestation ajoutée');
+}
+
+function openFavsModal() {
+  renderFavsModal();
+  S('modal-favs').classList.add('open');
+}
+
+function renderFavsModal() {
+  const favs = getFavs(); const dev = gS('devise','€');
+  if(!favs.length){
+    S('favs-list').innerHTML='<div style="text-align:center;padding:30px;color:var(--text3);font-size:14px;">Aucune prestation mémorisée.<br><br>Sur une ligne de prestation,<br>appuie sur ★ pour la sauvegarder.</div>';
+    return;
+  }
+  S('favs-list').innerHTML = favs.map((f,i)=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border);">
+      <div style="flex:1;cursor:pointer;" onclick="addFavToForm(${JSON.stringify(f).replace(/"/g,'&quot;')})">
+        <div style="font-size:14px;font-weight:500;color:var(--text);">${esc(f.desc)}</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:2px;">${f.qte||'—'} ${esc(f.unite||'')} · ${f.prix?fmtN(f.prix)+' '+dev:'prix libre'} · TVA ${f.tva||0}%</div>
+      </div>
+      <button onclick="deleteFav(${i})" style="background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;padding:4px 8px;flex-shrink:0;">×</button>
+    </div>`).join('');
+}
 function delLine(i) { formLines.splice(i,1); renderFormLines(); updateTotaux(); }
 
 function renderFormLines() {
@@ -590,11 +657,14 @@ function renderFormLines() {
     <div class="line-item">
       <div class="line-top">
         <input class="line-desc" type="text" value="${esc(l.desc)}" placeholder="Description" onchange="formLines[${i}].desc=this.value">
-        <button class="line-del" onclick="delLine(${i})">×</button>
+        <div style="display:flex;gap:2px;">
+          <button style="background:none;border:none;color:var(--orange);cursor:pointer;padding:4px;font-size:16px;" onclick="saveLigneAsFav(${i})" title="Mémoriser cette ligne">★</button>
+          <button class="line-del" onclick="delLine(${i})">×</button>
+        </div>
       </div>
       <div class="line-nums">
-        <div class="line-num-g"><div class="line-num-lbl">Quantité</div><input class="line-num-inp" type="number" value="${l.qte}" min="0" step="0.01" oninput="formLines[${i}].qte=parseFloat(this.value)||0;updateTotaux();updST(${i})"></div>
-        <div class="line-num-g"><div class="line-num-lbl">Prix HT</div><input class="line-num-inp" type="number" value="${l.prix}" min="0" step="0.01" oninput="formLines[${i}].prix=parseFloat(this.value)||0;updateTotaux();updST(${i})"></div>
+        <div class="line-num-g"><div class="line-num-lbl">Quantité</div><input class="line-num-inp" type="number" value="${l.qte||''}" placeholder="0" min="0" step="0.01" oninput="formLines[${i}].qte=parseFloat(this.value)||0;updateTotaux();updST(${i})"></div>
+        <div class="line-num-g"><div class="line-num-lbl">Prix HT</div><input class="line-num-inp" type="number" value="${l.prix||''}" placeholder="0" min="0" step="0.01" oninput="formLines[${i}].prix=parseFloat(this.value)||0;updateTotaux();updST(${i})"></div>
         <div class="line-num-g"><div class="line-num-lbl">Unité</div><input class="line-num-inp" type="text" value="${esc(l.unite)}" placeholder="m²" onchange="formLines[${i}].unite=this.value" style="font-size:11px;"></div>
         <div class="line-num-g"><div class="line-num-lbl">TVA %</div>
           <select class="line-num-inp" onchange="formLines[${i}].tva=parseFloat(this.value)||0;updateTotaux();updST(${i})">
@@ -904,11 +974,21 @@ function openPaiementModal(id){
   editingId=id;
   const doc=DB.docs.find(d=>d.id===id);
   const reste=resteAPayer(doc);
-  S('pay-montant').value=fmtN(reste).replace(/\s/g,'').replace(',','.');
+  const paye=totalPaye(doc);
+  const dev=gS('devise','€');
+  // Afficher le contexte dans le modal
+  let info='';
+  if(paye>0) info=`<div style="font-size:12px;color:var(--text3);text-align:center;margin-bottom:12px;">Déjà encaissé : <strong style="color:var(--green);">${fmt(paye,dev)}</strong> — Reste : <strong style="color:var(--orange);">${fmt(reste,dev)}</strong></div>`;
+  else info=`<div style="font-size:12px;color:var(--text3);text-align:center;margin-bottom:12px;">Total facture : <strong>${fmt(doc.total,dev)}</strong></div>`;
+  S('pay-context').innerHTML=info;
+  // Laisser le champ vide pour saisie libre (pas pré-rempli au total)
+  S('pay-montant').value='';
+  S('pay-montant').placeholder=fmtN(reste).replace(/\s/g,'').replace(',','.');
   S('pay-date').value=new Date().toISOString().split('T')[0];
   S('pay-ref').value='';
   selectMode('virement');
   S('modal-paiement').classList.add('open');
+  setTimeout(()=>S('pay-montant').focus(),300);
 }
 
 function selectMode(mode){
