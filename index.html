@@ -269,6 +269,30 @@ select.line-num-inp{-webkit-appearance:none;cursor:pointer;}
       </div>
       <div class="form-section">Notes par défaut</div>
       <div class="settings-sec"><textarea class="form-textarea" id="s-notes" placeholder="Paiement à réception. TVA non applicable, art. 293B CGI." oninput="saveSets()"></textarea></div>
+      <div class="form-section">Publication en ligne (lien SMS)</div>
+      <div class="settings-sec">
+        <div class="settings-row">
+          <span class="settings-lbl" style="min-width:80px;">Token GitHub</span>
+          <div class="settings-val">
+            <input id="s-gh-token" type="password" placeholder="ghp_xxxxxxxxxxxx" oninput="saveSets()" style="font-size:12px;letter-spacing:.03em;">
+          </div>
+        </div>
+        <div class="settings-row">
+          <span class="settings-lbl" style="min-width:80px;">Repo GitHub</span>
+          <div class="settings-val">
+            <input id="s-gh-repo" type="text" placeholder="frafra92/facturation-app" oninput="saveSets()">
+          </div>
+        </div>
+      </div>
+      <div style="margin:0 16px 16px;padding:12px;background:var(--blue-bg);border-radius:var(--r-sm);font-size:12px;color:var(--blue);line-height:1.6;">
+        <strong>Comment obtenir ton token GitHub :</strong><br>
+        1. Va sur github.com → ton avatar → Settings<br>
+        2. Tout en bas → Developer settings<br>
+        3. Personal access tokens → Tokens (classic)<br>
+        4. Generate new token (classic)<br>
+        5. Coche <strong>repo</strong> → Generate token<br>
+        6. Copie le token ici (commence par ghp_)
+      </div>
       <div class="form-section">Données</div>
       <button class="btn btn-danger" onclick="confirmReset()" style="margin-top:0;">Effacer toutes les données</button>
     </div>
@@ -458,12 +482,12 @@ function gS(k, def) { return (DB.sets[k] !== undefined && DB.sets[k] !== '') ? D
 
 /* SETTINGS */
 function loadSets() {
-  ['nom','siret','adresse','tel','email','site','iban','bic','banque','prefix-d','prefix-f','devise','validite','notes'].forEach(k => {
+  ['nom','siret','adresse','tel','email','site','iban','bic','banque','prefix-d','prefix-f','devise','validite','notes','gh-token','gh-repo'].forEach(k => {
     const el = S('s-'+k); if (el && DB.sets[k] !== undefined) el.value = DB.sets[k];
   });
 }
 function saveSets() {
-  ['nom','siret','adresse','tel','email','site','iban','bic','banque','prefix-d','prefix-f','devise','validite','notes'].forEach(k => {
+  ['nom','siret','adresse','tel','email','site','iban','bic','banque','prefix-d','prefix-f','devise','validite','notes','gh-token','gh-repo'].forEach(k => {
     const el = S('s-'+k); if (el) DB.sets[k] = el.value;
   });
   save();
@@ -877,7 +901,11 @@ function openDetail(id) {
     }
     actions+=`<button class="btn btn-sms" onclick="exportDoc(${id},'sms')">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-      Envoyer par SMS
+      Envoyer par SMS (texte)
+    </button>`;
+    actions+=`<button class="btn btn-sms" onclick="publishAndSendSMS(${id})" style="background:#e8f4fd;color:#0a7abf;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+      Envoyer le lien par SMS
     </button>`;
     actions+=`<button class="btn btn-secondary" onclick="exportDoc(${id},'email')" style="background:var(--blue-bg);color:var(--blue);">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,12 2,6"/></svg>
@@ -903,7 +931,11 @@ function openDetail(id) {
     }
     actions+=`<button class="btn btn-sms" onclick="exportDoc(${id},'sms')">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-      Envoyer par SMS
+      Envoyer par SMS (texte)
+    </button>`;
+    actions+=`<button class="btn btn-sms" onclick="publishAndSendSMS(${id})" style="background:#e8f4fd;color:#0a7abf;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+      Envoyer le lien par SMS
     </button>`;
     actions+=`<button class="btn btn-secondary" onclick="exportDoc(${id},'email')" style="background:var(--blue-bg);color:var(--blue);">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,12 2,6"/></svg>
@@ -1428,6 +1460,232 @@ if('serviceWorker' in navigator){
 }
 
 renderDashboard();
+
+/* ── PUBLICATION GITHUB + LIEN SMS ── */
+
+async function publishAndSendSMS(id){
+  const doc = DB.docs.find(d=>d.id===id);
+  if(!doc) return;
+
+  const token = gS('gh-token','');
+  const repo  = gS('gh-repo','frafra92/facturation-app');
+
+  if(!token){
+    toast('⚠ Configure ton token GitHub dans Paramètres');
+    navTo('settings', S('nav-settings'));
+    return;
+  }
+
+  // Afficher indicateur
+  toast('⏳ Publication en cours…');
+
+  try {
+    const filename = `factures/${doc.numero.replace(/[^a-zA-Z0-9-]/g,'_')}.html`;
+    const htmlContent = buildPublicPage(doc);
+    const encoded = btoa(unescape(encodeURIComponent(htmlContent)));
+
+    // Vérifier si le fichier existe déjà (pour récupérer le SHA)
+    let sha = null;
+    try {
+      const checkRes = await fetch(`https://api.github.com/repos/${repo}/contents/${filename}`, {
+        headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json' }
+      });
+      if(checkRes.ok){
+        const checkData = await checkRes.json();
+        sha = checkData.sha;
+      }
+    } catch(e){}
+
+    // Créer ou mettre à jour le fichier
+    const body = {
+      message: `${doc.type==='devis'?'Devis':'Facture'} ${doc.numero} — ${doc.client}`,
+      content: encoded,
+      ...(sha ? {sha} : {})
+    };
+
+    const res = await fetch(`https://api.github.com/repos/${repo}/contents/${filename}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `token ${token}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+
+    if(!res.ok){
+      const err = await res.json();
+      throw new Error(err.message || 'Erreur GitHub');
+    }
+
+    // Construire l'URL publique
+    const repoUser = repo.split('/')[0];
+    const repoName = repo.split('/')[1];
+    const publicUrl = `https://${repoUser}.github.io/${repoName}/${filename}`;
+
+    // Attendre 3s que GitHub Pages déploie puis envoyer SMS
+    await new Promise(r => setTimeout(r, 2000));
+
+    const tel = doc.tel ? doc.tel.replace(/\s/g,'') : '';
+    const isDevis = doc.type==='devis';
+    const smsBody = encodeURIComponent(
+      `${isDevis?'Devis':'Facture'} ${doc.numero}\n` +
+      `Client : ${doc.client}\n` +
+      `Montant : ${fmt(doc.total, gS('devise','€'))}\n\n` +
+      `Consultez votre ${isDevis?'devis':'facture'} en ligne :\n${publicUrl}\n\n` +
+      `(Vous pouvez l'enregistrer en PDF depuis ce lien)`
+    );
+
+    // Sauvegarder le lien dans le doc
+    doc.publicUrl = publicUrl;
+    save();
+
+    toast('✓ Publié ! Ouverture SMS…');
+
+    setTimeout(()=>{
+      const uri = tel ? `sms:${tel}?body=${smsBody}` : `sms:?body=${smsBody}`;
+      window.location.href = uri;
+    }, 500);
+
+  } catch(err) {
+    toast('⚠ Erreur : ' + err.message);
+    console.error(err);
+  }
+}
+
+function buildPublicPage(doc){
+  const dev = gS('devise','€');
+  const nom = gS('nom',''); const siret = gS('siret','');
+  const adresse = gS('adresse',''); const tel = gS('tel','');
+  const email = gS('email',''); const site = gS('site','');
+  const iban = gS('iban',''); const bic = gS('bic',''); const banque = gS('banque','');
+  const isDevis = doc.type==='devis';
+  const accentColor = isDevis ? '#6b3ac4' : '#1a5fc4';
+  const {badgeLbl} = getStatutInfo(doc);
+
+  let totalHT=0, totalTVA=0; const tvaMap={};
+  doc.lines.forEach(l=>{
+    const ht=l.qte*l.prix; totalHT+=ht;
+    const t=parseFloat(l.tva)||0; const ta=ht*t/100; totalTVA+=ta;
+    if(!tvaMap[t]) tvaMap[t]=0; tvaMap[t]+=ta;
+  });
+  const rem=parseFloat(doc.remise)||0;
+  const remAmt=(totalHT+totalTVA)*rem/100;
+  const paye=totalPaye(doc); const reste=resteAPayer(doc);
+
+  return `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${isDevis?'Devis':'Facture'} ${esc(doc.numero)} — ${esc(doc.client)}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,'Helvetica Neue',sans-serif;background:#f0f0f0;color:#1a1a1a;padding:16px;}
+.page{background:#fff;border-radius:12px;padding:28px 24px;max-width:600px;margin:0 auto;box-shadow:0 2px 16px rgba(0,0,0,.1);}
+.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:18px;border-bottom:2px solid ${accentColor};}
+.doc-type{font-size:26px;font-weight:700;color:${accentColor};}
+.doc-num{font-size:15px;font-weight:600;margin-top:2px;}
+.badge{display:inline-block;background:${isDevis?'#f3eefe':'#eef3fd'};color:${accentColor};font-size:11px;padding:3px 10px;border-radius:20px;font-weight:500;margin-top:6px;}
+.dates{text-align:right;font-size:12px;}
+.dates .lbl{color:#9e9e9e;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;}
+.dates .val{font-weight:500;margin-bottom:8px;}
+.parties{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;}
+.party-lbl{font-size:10px;font-weight:600;color:#9e9e9e;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;}
+.party-name{font-size:13px;font-weight:600;}
+.party-info{font-size:12px;color:#6b6b6b;line-height:1.5;}
+table{width:100%;border-collapse:collapse;margin-bottom:20px;font-size:12px;}
+thead tr{background:${accentColor};color:#fff;}
+th{padding:9px 10px;font-weight:500;text-align:left;}
+th:last-child,td:last-child{text-align:right;}
+td{padding:9px 10px;border-bottom:1px solid #f0f0f0;}
+tr:nth-child(even) td{background:#f9f9f8;}
+.totaux{display:flex;justify-content:flex-end;margin-bottom:20px;}
+.totaux-inner{min-width:240px;}
+.t-row{display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:#6b6b6b;}
+.t-grand{display:flex;justify-content:space-between;padding:10px 14px;margin-top:6px;background:${accentColor};border-radius:6px;color:#fff;}
+.t-grand span:first-child{font-size:14px;font-weight:600;}
+.t-grand span:last-child{font-size:16px;font-weight:700;}
+.t-paye{display:flex;justify-content:space-between;padding:6px 14px;margin-top:4px;background:#edf7f1;border-radius:6px;color:#1a7a4a;font-size:13px;font-weight:500;}
+.t-reste{display:flex;justify-content:space-between;padding:6px 14px;margin-top:4px;background:#fef6e7;border-radius:6px;color:#c47a1a;font-size:13px;font-weight:600;}
+.iban-block{background:#f4f4f4;border-radius:8px;padding:14px;margin-bottom:16px;font-size:12px;color:#6b6b6b;}
+.iban-lbl{font-size:10px;font-weight:600;color:#9e9e9e;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;}
+.notes{padding:14px;background:#f9f9f8;border-left:3px solid ${accentColor};border-radius:0 6px 6px 0;font-size:12px;color:#6b6b6b;line-height:1.7;white-space:pre-line;margin-bottom:16px;}
+.pdf-btn{display:block;width:100%;padding:15px;background:${accentColor};color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;text-align:center;margin-top:20px;font-family:inherit;}
+.pdf-btn:active{opacity:.85;}
+.footer{text-align:center;font-size:11px;color:#9e9e9e;margin-top:16px;}
+@media print{.pdf-btn,.footer{display:none!important;}body{background:#fff;padding:0;}.page{box-shadow:none;border-radius:0;}}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="header">
+    <div>
+      <div class="doc-type">${isDevis?'DEVIS':'FACTURE'}</div>
+      <div class="doc-num">${esc(doc.numero)}</div>
+      <div class="badge">${badgeLbl}</div>
+    </div>
+    <div class="dates">
+      <div class="lbl">Date</div><div class="val">${fmtDate(doc.date)}</div>
+      <div class="lbl">${isDevis?"Valable jusqu'au":'Échéance'}</div><div class="val">${fmtDate(doc.date2)}</div>
+    </div>
+  </div>
+
+  <div class="parties">
+    <div>
+      <div class="party-lbl">Prestataire</div>
+      ${nom?`<div class="party-name">${esc(nom)}</div>`:''}
+      <div class="party-info">${[siret?'SIRET : '+siret:'',adresse,tel,email,site].filter(Boolean).join('<br>')}</div>
+    </div>
+    <div>
+      <div class="party-lbl">Client</div>
+      <div class="party-name">${esc(doc.client)}</div>
+      <div class="party-info">${[doc.adresse?esc(doc.adresse):'',doc.tel?esc(doc.tel):'',doc.email?esc(doc.email):''].filter(Boolean).join('<br>')}</div>
+    </div>
+  </div>
+
+  <table>
+    <thead><tr>
+      <th>Prestation</th><th style="text-align:center;">Qté</th>
+      <th style="text-align:center;">Prix HT</th><th style="text-align:center;">TVA</th>
+      <th>Total TTC</th>
+    </tr></thead>
+    <tbody>
+      ${doc.lines.map((l,i)=>{
+        const ht=l.qte*l.prix; const tvaAmt=ht*(parseFloat(l.tva)||0)/100;
+        return `<tr><td>${esc(l.desc||'—')}</td><td style="text-align:center;">${l.qte} ${esc(l.unite||'')}</td><td style="text-align:center;">${fmtN(l.prix)} ${dev}</td><td style="text-align:center;">${l.tva>0?l.tva+' %':'—'}</td><td>${fmtN(ht+tvaAmt)} ${dev}</td></tr>`;
+      }).join('')}
+    </tbody>
+  </table>
+
+  <div class="totaux"><div class="totaux-inner">
+    <div class="t-row"><span>Sous-total HT</span><span>${fmtN(totalHT)} ${dev}</span></div>
+    ${Object.entries(tvaMap).map(([r,a])=>parseFloat(r)===0
+      ?`<div class="t-row"><span>TVA 0 %</span><span style="color:#9e9e9e;">Non applicable</span></div>`
+      :`<div class="t-row"><span>TVA ${r} %</span><span>${fmtN(a)} ${dev}</span></div>`
+    ).join('')}
+    ${rem>0?`<div class="t-row" style="color:#c73030;"><span>Remise (${rem}%)</span><span>-${fmtN(remAmt)} ${dev}</span></div>`:''}
+    <div class="t-grand"><span>Total TTC</span><span>${fmt(doc.total,dev)}</span></div>
+    ${paye>0?`<div class="t-paye"><span>Déjà payé</span><span>-${fmt(paye,dev)}</span></div>`:''}
+    ${reste>0&&paye>0?`<div class="t-reste"><span>Reste à payer</span><span>${fmt(reste,dev)}</span></div>`:''}
+  </div></div>
+
+  ${(iban||bic)?`<div class="iban-block">
+    <div class="iban-lbl">Coordonnées bancaires</div>
+    ${banque?`<div style="font-weight:600;color:#1a1a1a;margin-bottom:4px;">${esc(banque)}</div>`:''}
+    ${iban?`<div>IBAN : <strong style="letter-spacing:.04em;">${esc(iban)}</strong></div>`:''}
+    ${bic?`<div>BIC : <strong>${esc(bic)}</strong></div>`:''}
+  </div>`:''}
+
+  ${doc.notes?`<div class="notes">${esc(doc.notes)}</div>`:''}
+  ${isDevis?`<p style="font-size:11px;color:#9e9e9e;text-align:center;margin-bottom:8px;">Devis valable ${gS('validite','30')} jours.</p>`:''}
+
+  <button class="pdf-btn" onclick="window.print()">⬇ Enregistrer en PDF</button>
+  <div class="footer">Document généré par Facturation François</div>
+</div>
+</body>
+</html>`;
+}
 
 /* ── CONTACT PICKER ── */
 function initContactPicker(){
