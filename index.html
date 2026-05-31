@@ -775,13 +775,36 @@ function openDetail(id) {
   // ACTIONS
   let actions='';
   if(doc.type==='devis'){
-    actions+=`<button class="btn btn-purple" onclick="convertToFacture(${id})">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>
-      Convertir en facture
-    </button>`;
-    actions+=`<button class="btn btn-sms" onclick="exportDoc(${id})">
+    // Workflow selon statut du devis
+    if(doc.statut === 'facture'){
+      // Déjà converti
+      actions+=`<button class="btn btn-secondary" style="opacity:.6;cursor:default;">✓ Converti en facture</button>`;
+    } else if(doc.statut === 'accepte'){
+      // Accepté → bouton convertir très visible
+      actions+=`<button class="btn btn-primary" onclick="convertToFacture(${id})" style="font-size:16px;padding:18px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>
+        Créer la facture
+      </button>`;
+    } else if(doc.statut === 'refuse'){
+      actions+=`<button class="btn btn-secondary" style="opacity:.6;cursor:default;">✗ Devis refusé</button>`;
+    } else {
+      // Brouillon ou envoyé → d'abord marquer accepté
+      actions+=`<button class="btn btn-green" onclick="accepterDevis(${id})">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+        Client a validé le devis
+      </button>`;
+      actions+=`<button class="btn btn-danger" onclick="refuserDevis(${id})" style="background:var(--red-bg);color:var(--red);">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        Client a refusé
+      </button>`;
+    }
+    actions+=`<button class="btn btn-sms" onclick="exportDoc(${id},'sms')">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
       Envoyer par SMS
+    </button>`;
+    actions+=`<button class="btn btn-secondary" onclick="exportDoc(${id},'email')" style="background:var(--blue-bg);color:var(--blue);">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,12 2,6"/></svg>
+      Envoyer par email
     </button>`;
     actions+=`<button class="btn btn-secondary" onclick="openPDF(${id})">📄 Aperçu & PDF</button>`;
     actions+=`<button class="btn btn-secondary" onclick="openForm('devis',${id})">Modifier</button>`;
@@ -798,9 +821,13 @@ function openDetail(id) {
         ${docStatutAuto(doc)==='payee'?'Marquer non réglée':'Marquer comme payée ✓'}
       </button>`;
     }
-    actions+=`<button class="btn btn-sms" onclick="exportDoc(${id})">
+    actions+=`<button class="btn btn-sms" onclick="exportDoc(${id},'sms')">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
       Envoyer par SMS
+    </button>`;
+    actions+=`<button class="btn btn-secondary" onclick="exportDoc(${id},'email')" style="background:var(--blue-bg);color:var(--blue);">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,12 2,6"/></svg>
+      Envoyer par email
     </button>`;
     actions+=`<button class="btn btn-secondary" onclick="openPDF(${id})">📄 Aperçu & PDF</button>`;
     actions+=`<button class="btn btn-secondary" onclick="openForm('facture',${id})">Modifier</button>`;
@@ -808,9 +835,17 @@ function openDetail(id) {
   }
   S('det-actions').innerHTML=actions;
 
-  // Banner devis accepté non facturé
-  if(doc.type==='devis'&&doc.statut==='accepte'&&!doc.linkedFactureId){
-    S('detail-convert-banner').innerHTML=`<div class="convert-banner"><div class="convert-text"><strong>Devis accepté !</strong>Convertir en facture dès réception de l'acompte</div><button class="convert-btn-inline" onclick="convertToFacture(${id})">Convertir →</button></div>`;
+  // Banner selon statut devis
+  if(doc.type==='devis'){
+    if(doc.statut==='accepte'&&!doc.linkedFactureId){
+      S('detail-convert-banner').innerHTML=`<div class="convert-banner" style="background:var(--green-bg);border-color:var(--green);"><div class="convert-text" style="color:var(--green);"><strong>✓ Devis accepté</strong>Prêt à être converti en facture</div><button class="convert-btn-inline" style="background:var(--green);" onclick="convertToFacture(${id})">Créer la facture →</button></div>`;
+    } else if(doc.statut==='refuse'){
+      S('detail-convert-banner').innerHTML=`<div class="convert-banner" style="background:var(--red-bg);border-color:var(--red);"><div class="convert-text" style="color:var(--red);"><strong>✗ Devis refusé</strong>Tu peux le modifier et le renvoyer</div><button class="convert-btn-inline" style="background:var(--red);" onclick="openForm('devis',${id})">Modifier →</button></div>`;
+    } else if(doc.statut==='facture'){
+      S('detail-convert-banner').innerHTML='';
+    } else {
+      S('detail-convert-banner').innerHTML=`<div class="convert-banner"><div class="convert-text"><strong>En attente de réponse</strong>Marque ci-dessous quand le client répond</div></div>`;
+    }
   } else { S('detail-convert-banner').innerHTML=''; }
 
   S('topbar-title').textContent=doc.type==='devis'?'Devis':'Facture';
@@ -820,6 +855,24 @@ function openDetail(id) {
 }
 
 /* CONVERSION */
+function accepterDevis(id){
+  const doc=DB.docs.find(d=>d.id===id);
+  if(!doc) return;
+  doc.statut='accepte';
+  save();
+  toast('✓ Devis accepté — crée la facture quand tu veux');
+  openDetail(id);
+}
+
+function refuserDevis(id){
+  const doc=DB.docs.find(d=>d.id===id);
+  if(!doc) return;
+  doc.statut='refuse';
+  save();
+  toast('Devis marqué comme refusé');
+  openDetail(id);
+}
+
 function convertToFacture(devisId){
   const devis=DB.docs.find(d=>d.id===devisId);
   if(!devis) return;
@@ -910,11 +963,22 @@ function deleteDoc(id){
 }
 
 /* EXPORT SMS */
-function exportDoc(id){
+function exportDoc(id, canal){
   const doc=DB.docs.find(d=>d.id===id); if(!doc) return;
   currentExportDocId=id;
+  const txt=buildTexte(doc);
+  if(canal==='email'){
+    // Envoi direct par email — ouvre l'appli Mail avec tout pré-rempli
+    const dest=doc.email||'';
+    const isDevis=doc.type==='devis';
+    const sujet=encodeURIComponent((isDevis?'Devis ':'Facture ')+doc.numero+' — '+doc.client);
+    const corps=encodeURIComponent(txt);
+    window.location.href=`mailto:${dest}?subject=${sujet}&body=${corps}`;
+    return;
+  }
+  // SMS ou aperçu texte
   S('modal-export-title').textContent=doc.type==='devis'?'Texte du devis':'Texte de la facture';
-  S('export-text').value=buildTexte(doc);
+  S('export-text').value=txt;
   S('modal-export').classList.add('open');
 }
 function sendSMS(){
