@@ -1,63 +1,3 @@
-/* ── CONTACT PICKER ── */
-
-async function pickContactNative(){
-  // API Contact Picker — iOS 14.5+ Safari et PWA
-  if('contacts' in navigator && 'ContactsManager' in window){
-    try {
-      let supported = ['name','tel','email','address'];
-      try { supported = await navigator.contacts.getProperties(); } catch(e){}
-      const toRequest = ['name','tel','email','address'].filter(p => supported.includes(p));
-      const contacts = await navigator.contacts.select(toRequest, { multiple: false });
-      if(!contacts || !contacts.length) return;
-      const c = contacts[0];
-      if(c.name?.[0])  S('f-client').value = c.name[0];
-      if(c.tel?.[0])   S('f-tel').value    = formatTel(c.tel[0]);
-      if(c.email?.[0]) S('f-email').value  = c.email[0];
-      if(c.address?.[0]){
-        const a = c.address[0];
-        const parts = [a.streetAddress, a.city, a.postalCode].filter(Boolean);
-        if(parts.length) S('f-adresse').value = parts.join(', ');
-      }
-      toast('✓ Contact importé');
-      return;
-    } catch(err){
-      if(err.name === 'AbortError') return; // Annulé par l'utilisateur
-      // API non disponible → saisie manuelle
-    }
-  }
-  // Fallback saisie manuelle
-  openContactModal();
-}
-
-function checkContactFromURL(){ /* placeholder */ }
-
-function openContactModal(){
-  S('cm-nom').value=''; S('cm-tel').value='';
-  S('cm-email').value=''; S('cm-adresse').value='';
-  S('modal-contact').classList.add('open');
-  setTimeout(()=>S('cm-nom').focus(), 300);
-}
-
-function applyContactFromModal(){
-  const nom    = S('cm-nom').value.trim();
-  const tel    = S('cm-tel').value.trim();
-  const email  = S('cm-email').value.trim();
-  const adresse= S('cm-adresse').value.trim();
-  if(nom)    S('f-client').value = nom;
-  if(tel)    S('f-tel').value    = formatTel(tel);
-  if(email)  S('f-email').value  = email;
-  if(adresse)S('f-adresse').value= adresse;
-  closeModal('modal-contact');
-  toast('✓ Contact renseigné');
-}
-
-function formatTel(tel){
-  let t = tel.replace(/\s/g,'');
-  if(t.startsWith('+33')) t = '0' + t.slice(3);
-  if(t.length === 10) t = t.replace(/(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4 $5');
-  return t;
-}
-
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -584,7 +524,36 @@ function navTo(screen, btn) {
   S('topbar-btn').style.display = showBtn ? 'block' : 'none';
   S('topbar-btn').textContent = screen==='devis'?'+ Devis':screen==='factures'?'+ Facture':'+ Nouveau';
   curScreen = screen;
-  if (screen==='dashboard') checkContactFromURL();
+  if (screen==='dashboard') function openContactModal(){
+  if(S('cm-nom')) S('cm-nom').value='';
+  if(S('cm-tel')) S('cm-tel').value='';
+  if(S('cm-email')) S('cm-email').value='';
+  if(S('cm-adresse')) S('cm-adresse').value='';
+  S('modal-contact').classList.add('open');
+  setTimeout(()=>{ if(S('cm-nom')) S('cm-nom').focus(); }, 300);
+}
+
+function applyContactFromModal(){
+  const nom    = (S('cm-nom')?.value||'').trim();
+  const tel    = (S('cm-tel')?.value||'').trim();
+  const email  = (S('cm-email')?.value||'').trim();
+  const adresse= (S('cm-adresse')?.value||'').trim();
+  if(nom)    S('f-client').value = nom;
+  if(tel)    S('f-tel').value    = formatTel(tel);
+  if(email)  S('f-email').value  = email;
+  if(adresse)S('f-adresse').value= adresse;
+  closeModal('modal-contact');
+  toast('✓ Contact renseigné');
+}
+
+function formatTel(tel){
+  let t = (tel||'').replace(/\s/g,'');
+  if(t.startsWith('+33')) t = '0' + t.slice(3);
+  if(t.length === 10) t = t.replace(/(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4 $5');
+  return t;
+}
+
+checkContactFromURL();
 renderDashboard();
   if (screen==='devis') renderDevis();
   if (screen==='factures') renderFactures();
