@@ -421,7 +421,7 @@ select.line-num-inp{-webkit-appearance:none;cursor:pointer;}
   <div class="pdf-toolbar">
     <button onclick="closeModal('modal-pdf')" style="background:none;border:none;color:#fff;font-size:14px;cursor:pointer;font-family:inherit;">← Retour</button>
     <span style="color:#fff;font-size:14px;font-weight:500;" id="pdf-toolbar-title">Aperçu</span>
-    <button onclick="window.print()" style="background:#c9a84c;border:none;color:#1a1a1a;font-size:13px;font-weight:600;border-radius:20px;padding:7px 14px;cursor:pointer;font-family:inherit;">⬇ PDF</button>
+    <button onclick="savePDF()" style="background:#c9a84c;border:none;color:#1a1a1a;font-size:13px;font-weight:600;border-radius:20px;padding:7px 14px;cursor:pointer;font-family:inherit;">⬇ Enregistrer PDF</button>
   </div>
   <div class="pdf-scroll">
     <div class="pdf-page" id="pdf-preview"></div>
@@ -876,7 +876,10 @@ function openDetail(id) {
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,12 2,6"/></svg>
       Envoyer par email
     </button>`;
-    actions+=`<button class="btn btn-secondary" onclick="openPDF(${id})">📄 Aperçu & PDF</button>`;
+    actions+=`<button class="btn btn-secondary" onclick="exportDoc(${id},'pdf')" style="background:var(--red-bg);color:var(--red);">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      Télécharger PDF
+    </button>`;
     actions+=`<button class="btn btn-secondary" onclick="openForm('devis',${id})">Modifier</button>`;
     actions+=`<button class="btn btn-danger" onclick="deleteDoc(${id})">Supprimer</button>`;
   } else {
@@ -899,7 +902,10 @@ function openDetail(id) {
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,12 2,6"/></svg>
       Envoyer par email
     </button>`;
-    actions+=`<button class="btn btn-secondary" onclick="openPDF(${id})">📄 Aperçu & PDF</button>`;
+    actions+=`<button class="btn btn-secondary" onclick="exportDoc(${id},'pdf')" style="background:var(--red-bg);color:var(--red);">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      Télécharger PDF
+    </button>`;
     actions+=`<button class="btn btn-secondary" onclick="openForm('facture',${id})">Modifier</button>`;
     actions+=`<button class="btn btn-danger" onclick="deleteDoc(${id})">Supprimer</button>`;
   }
@@ -1046,21 +1052,136 @@ function deleteDoc(id){
 function exportDoc(id, canal){
   const doc=DB.docs.find(d=>d.id===id); if(!doc) return;
   currentExportDocId=id;
-  const txt=buildTexte(doc);
+
   if(canal==='email'){
-    // Envoi direct par email — ouvre l'appli Mail avec tout pré-rempli
+    // Email avec corps en texte structuré (identique au PDF visuellement)
     const dest=doc.email||'';
     const isDevis=doc.type==='devis';
     const sujet=encodeURIComponent((isDevis?'Devis ':'Facture ')+doc.numero+' — '+doc.client);
-    const corps=encodeURIComponent(txt);
+    const corps=encodeURIComponent(buildEmailTexte(doc));
     window.location.href=`mailto:${dest}?subject=${sujet}&body=${corps}`;
     return;
   }
-  // SMS ou aperçu texte
+
+  if(canal==='pdf'){
+    // Ouvre l'aperçu PDF puis déclenche impression
+    openPDF(id);
+    return;
+  }
+
+  // SMS — texte court
   S('modal-export-title').textContent=doc.type==='devis'?'Texte du devis':'Texte de la facture';
-  S('export-text').value=txt;
+  S('export-text').value=buildTexte(doc);
   S('modal-export').classList.add('open');
 }
+
+function buildEmailTexte(doc){
+  // Texte email structuré — même contenu que le PDF, format texte propre
+  const dev=gS('devise','€');
+  const nom=gS('nom',''); const siret=gS('siret','');
+  const adresse=gS('adresse',''); const tel=gS('tel','');
+  const email=gS('email',''); const site=gS('site','');
+  const iban=gS('iban',''); const bic=gS('bic',''); const banque=gS('banque','');
+  const isDevis=doc.type==='devis';
+  const sep='═'.repeat(44);
+  const sep2='─'.repeat(44);
+
+  let txt=sep+'\n';
+  txt+=(isDevis?'          D E V I S':'        F A C T U R E')+'\n';
+  txt+='          '+doc.numero+'\n';
+  txt+=sep+'\n\n';
+
+  // Dates
+  txt+='Date          : '+fmtDate(doc.date)+'\n';
+  txt+=(isDevis?"Valable jusqu'au":"Échéance     ")+'  : '+fmtDate(doc.date2)+'\n\n';
+
+  // Prestataire
+  if(nom||siret){
+    txt+=sep2+'\n';
+    txt+='PRESTATAIRE\n'+sep2+'\n';
+    if(nom) txt+=nom+'\n';
+    if(siret) txt+='SIRET : '+siret+'\n';
+    if(adresse) txt+=adresse+'\n';
+    if(tel) txt+='Tél : '+tel+'\n';
+    if(email) txt+=email+'\n';
+    if(site) txt+=site+'\n';
+    txt+='\n';
+  }
+
+  // Client
+  txt+=sep2+'\n';
+  txt+='CLIENT\n'+sep2+'\n';
+  txt+=doc.client+'\n';
+  if(doc.adresse) txt+=doc.adresse+'\n';
+  if(doc.tel) txt+=doc.tel+'\n';
+  if(doc.email) txt+=doc.email+'\n';
+  txt+='\n';
+
+  // Prestations — tableau texte
+  txt+=sep2+'\n';
+  txt+='PRESTATIONS\n'+sep2+'\n';
+  const col1=28, col2=8, col3=10, col4=8;
+  txt+=padR('Description',col1)+padL('Qté',col2)+padL('Prix HT',col3)+padL('TVA',col4)+padL('Total TTC',12)+'\n';
+  txt+=sep2+'\n';
+  doc.lines.forEach(l=>{
+    const ht=l.qte*l.prix;
+    const tvaAmt=ht*(parseFloat(l.tva)||0)/100;
+    const ttc=ht+tvaAmt;
+    const desc=(l.desc||'—').substring(0,col1-1);
+    const qte=(l.qte+' '+(l.unite||'')).trim();
+    txt+=padR(desc,col1)+padL(qte,col2)+padL(fmtN(l.prix)+' '+dev,col3)+padL(l.tva>0?l.tva+'%':'—',col4)+padL(fmtN(ttc)+' '+dev,12)+'\n';
+  });
+  txt+=sep2+'\n\n';
+
+  // Totaux
+  let totalHT=0,totalTVA=0; const tvaMap={};
+  doc.lines.forEach(l=>{
+    const ht=l.qte*l.prix; totalHT+=ht;
+    const t=parseFloat(l.tva)||0; const ta=ht*t/100; totalTVA+=ta;
+    if(!tvaMap[t]) tvaMap[t]=0; tvaMap[t]+=ta;
+  });
+  const rem=parseFloat(doc.remise)||0;
+  const remAmt=(totalHT+totalTVA)*rem/100;
+  const w=44;
+  txt+=padR('Sous-total HT :',w-14)+padL(fmtN(totalHT)+' '+dev,14)+'\n';
+  Object.entries(tvaMap).forEach(([r,a])=>{
+    if(parseFloat(r)===0) txt+=padR('TVA 0 % :',w-14)+padL('Non applicable',14)+'\n';
+    else txt+=padR('TVA '+r+' % :',w-14)+padL(fmtN(a)+' '+dev,14)+'\n';
+  });
+  if(rem>0) txt+=padR('Remise ('+rem+'%) :',w-14)+padL('-'+fmtN(remAmt)+' '+dev,14)+'\n';
+  txt+=sep2+'\n';
+  txt+=padR('TOTAL TTC :',w-14)+padL(fmt(doc.total,dev),14)+'\n';
+  txt+=sep+'\n';
+
+  // Paiements
+  const paye=totalPaye(doc); const reste=resteAPayer(doc);
+  if(doc.type==='facture'&&paye>0){
+    txt+='\n';
+    txt+=padR('Déjà encaissé :',w-14)+padL(fmt(paye,dev),14)+'\n';
+    if(reste>0) txt+=padR('Reste à payer :',w-14)+padL(fmt(reste,dev),14)+'\n';
+    else txt+='✓ Facture soldée\n';
+    txt+='\n';
+  }
+
+  // IBAN
+  if(iban||bic){
+    txt+=sep2+'\n';
+    txt+='COORDONNÉES BANCAIRES\n'+sep2+'\n';
+    if(banque) txt+=banque+'\n';
+    if(iban) txt+='IBAN : '+iban+'\n';
+    if(bic) txt+='BIC  : '+bic+'\n';
+    txt+='\n';
+  }
+
+  // Notes
+  if(doc.notes){ txt+=sep2+'\n'; txt+=doc.notes+'\n'; }
+  if(isDevis) txt+='\nDevis valable '+gS('validite','30')+' jours à compter de sa date d\'émission.\n';
+
+  return txt;
+}
+
+function padR(s,n){ s=String(s); return s.length>=n?s.substring(0,n):s+' '.repeat(n-s.length); }
+function padL(s,n){ s=String(s); return s.length>=n?s.substring(0,n):' '.repeat(n-s.length)+s; }
 function sendSMS(){
   const doc=DB.docs.find(d=>d.id===currentExportDocId);
   const tel=doc?.tel||'';
@@ -1128,12 +1249,29 @@ function buildTexte(doc){
 }
 
 /* PDF */
+let currentPDFDocId = null;
 function openPDF(id){
   const doc=DB.docs.find(d=>d.id===id); if(!doc) return;
+  currentPDFDocId=id;
   S('pdf-toolbar-title').textContent=doc.type==='devis'?'Aperçu devis':'Aperçu facture';
   S('pdf-preview').innerHTML=buildHTMLDoc(doc);
   S('modal-pdf').classList.add('open');
   S('modal-pdf').querySelector('.pdf-scroll').scrollTop=0;
+}
+
+function savePDF(){
+  // Sur mobile : impression système → "Enregistrer en PDF"
+  // Sur desktop : dialogue d'impression
+  const doc = DB.docs.find(d=>d.id===currentPDFDocId);
+  if(doc){
+    // Mettre à jour le titre de la page pour le nom du fichier PDF
+    const origTitle = document.title;
+    document.title = (doc.type==='devis'?'Devis':'Facture')+'_'+doc.numero+'_'+doc.client.replace(/\s+/g,'_');
+    window.print();
+    setTimeout(()=>{ document.title = origTitle; }, 1000);
+  } else {
+    window.print();
+  }
 }
 
 function buildHTMLDoc(doc){
