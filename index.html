@@ -1,3 +1,63 @@
+/* ── CONTACT PICKER ── */
+
+async function pickContactNative(){
+  // API Contact Picker — iOS 14.5+ Safari et PWA
+  if('contacts' in navigator && 'ContactsManager' in window){
+    try {
+      let supported = ['name','tel','email','address'];
+      try { supported = await navigator.contacts.getProperties(); } catch(e){}
+      const toRequest = ['name','tel','email','address'].filter(p => supported.includes(p));
+      const contacts = await navigator.contacts.select(toRequest, { multiple: false });
+      if(!contacts || !contacts.length) return;
+      const c = contacts[0];
+      if(c.name?.[0])  S('f-client').value = c.name[0];
+      if(c.tel?.[0])   S('f-tel').value    = formatTel(c.tel[0]);
+      if(c.email?.[0]) S('f-email').value  = c.email[0];
+      if(c.address?.[0]){
+        const a = c.address[0];
+        const parts = [a.streetAddress, a.city, a.postalCode].filter(Boolean);
+        if(parts.length) S('f-adresse').value = parts.join(', ');
+      }
+      toast('✓ Contact importé');
+      return;
+    } catch(err){
+      if(err.name === 'AbortError') return; // Annulé par l'utilisateur
+      // API non disponible → saisie manuelle
+    }
+  }
+  // Fallback saisie manuelle
+  openContactModal();
+}
+
+function checkContactFromURL(){ /* placeholder */ }
+
+function openContactModal(){
+  S('cm-nom').value=''; S('cm-tel').value='';
+  S('cm-email').value=''; S('cm-adresse').value='';
+  S('modal-contact').classList.add('open');
+  setTimeout(()=>S('cm-nom').focus(), 300);
+}
+
+function applyContactFromModal(){
+  const nom    = S('cm-nom').value.trim();
+  const tel    = S('cm-tel').value.trim();
+  const email  = S('cm-email').value.trim();
+  const adresse= S('cm-adresse').value.trim();
+  if(nom)    S('f-client').value = nom;
+  if(tel)    S('f-tel').value    = formatTel(tel);
+  if(email)  S('f-email').value  = email;
+  if(adresse)S('f-adresse').value= adresse;
+  closeModal('modal-contact');
+  toast('✓ Contact renseigné');
+}
+
+function formatTel(tel){
+  let t = tel.replace(/\s/g,'');
+  if(t.startsWith('+33')) t = '0' + t.slice(3);
+  if(t.length === 10) t = t.replace(/(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4 $5');
+  return t;
+}
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -1775,135 +1835,7 @@ async function pickContactNative(){
     }
   }
 
-  // Méthode 2 : Ouvrir dans Safari pour accéder à l'API Contact Picker
-  // (la PWA installée peut ne pas avoir accès — Safari oui)
-  const isPWA = window.navigator.standalone === true;
-  if(isPWA){
-    // On est dans la PWA installée — ouvrir Safari avec l'URL de l'appli + paramètre
-    // pour déclencher le contact picker depuis Safari
-    const url = 'https://frafra92.github.io/facturation-app/?action=pickcontact';
-    // Sauvegarder l'état du formulaire pour le récupérer au retour
-    localStorage.setItem('pending_contact_pick', '1');
-    window.open(url, '_blank');
-    // Afficher instruction
-    openContactModal();
-    return;
-  }
 
-  // Méthode 3 : on est dans Safari mais l'API n'est pas dispo → saisie manuelle
-  openContactModal();
-}
-
-// Détecter si on revient d'une sélection de contact via URL params
-function checkContactFromURL(){
-  const params = new URLSearchParams(window.location.search);
-  if(params.get('action') === 'pickcontact'){
-    // On est dans Safari — déclencher l'API Contact Picker directement
-    triggerContactPickerInSafari();
-  }
-  // Récupérer un contact transmis via localStorage
-  const pending = localStorage.getItem('contact_picked');
-  if(pending){
-    try {
-      const c = JSON.parse(pending);
-      localStorage.removeItem('contact_picked');
-      fillContactFromData(c);
-      toast('✓ Contact importé');
-    } catch(e){}
-  }
-}
-
-async function triggerContactPickerInSafari(){
-  if(!('contacts' in navigator)) { openContactModal(); return; }
-  try {
-    let supported = ['name','tel','email','address'];
-    try { supported = await navigator.contacts.getProperties(); } catch(e){}
-    const contacts = await navigator.contacts.select(
-      ['name','tel','email','address'].filter(p=>supported.includes(p)),
-      {multiple:false}
-    );
-    if(!contacts || !contacts.length) return;
-    const c = contacts[0];
-    // Sauvegarder dans localStorage pour que la PWA récupère
-    const data = {
-      name: c.name?.[0]||'',
-      tel: c.tel?.[0]||'',
-      email: c.email?.[0]||'',
-      address: c.address?.[0]||null
-    };
-    localStorage.setItem('contact_picked', JSON.stringify(data));
-    localStorage.removeItem('pending_contact_pick');
-    // Fermer cet onglet Safari et retourner à la PWA
-    window.close();
-  } catch(err){
-    if(err.name!=='AbortError') openContactModal();
-  }
-}
-
-function fillContactFields(c){
-  if(c.name?.[0]) S('f-client').value = c.name[0];
-  if(c.tel?.[0]){ S('f-tel').value = formatTel(c.tel[0]); }
-  if(c.email?.[0]) S('f-email').value = c.email[0];
-  if(c.address?.[0]){
-    const a=c.address[0];
-    const parts=[a.streetAddress,a.city,a.postalCode].filter(Boolean);
-    if(parts.length) S('f-adresse').value=parts.join(', ');
-  }
-}
-
-function fillContactFromData(c){
-  if(c.name) S('f-client').value=c.name;
-  if(c.tel){ S('f-tel').value=formatTel(c.tel); }
-  if(c.email) S('f-email').value=c.email;
-  if(c.address){
-    const a=c.address;
-    const parts=[a.streetAddress,a.city,a.postalCode].filter(Boolean);
-    if(parts.length) S('f-adresse').value=parts.join(', ');
-  }
-}
-
-function formatTel(tel){
-  let t=tel.replace(/\s/g,'');
-  if(t.startsWith('+33')) t='0'+t.slice(3);
-  if(t.length===10) t=t.replace(/(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/,'$1 $2 $3 $4 $5');
-  return t;
-}
-
-function openContactModal(){
-  // Pré-remplir si données en attente
-  const pending = localStorage.getItem('contact_picked');
-  if(pending){
-    try {
-      const c=JSON.parse(pending);
-      localStorage.removeItem('contact_picked');
-      if(c.name) S('cm-nom').value=c.name;
-      if(c.tel) S('cm-tel').value=formatTel(c.tel);
-      if(c.email) S('cm-email').value=c.email;
-      if(c.address){
-        const a=c.address;
-        S('cm-adresse').value=[a.streetAddress,a.city,a.postalCode].filter(Boolean).join(', ');
-      }
-    } catch(e){}
-  } else {
-    S('cm-nom').value=''; S('cm-tel').value='';
-    S('cm-email').value=''; S('cm-adresse').value='';
-  }
-  S('modal-contact').classList.add('open');
-  setTimeout(()=>S('cm-nom').focus(), 300);
-}
-
-function applyContactFromModal(){
-  const nom=S('cm-nom').value.trim();
-  const tel=S('cm-tel').value.trim();
-  const email=S('cm-email').value.trim();
-  const adresse=S('cm-adresse').value.trim();
-  if(nom) S('f-client').value=nom;
-  if(tel) S('f-tel').value=formatTel(tel);
-  if(email) S('f-email').value=email;
-  if(adresse) S('f-adresse').value=adresse;
-  closeModal('modal-contact');
-  toast('✓ Contact renseigné');
-}
 </script>
 </body>
 </html>
